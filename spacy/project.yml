@@ -1,0 +1,71 @@
+title: "Classifying Traits of Keanu Reeves' Characters in Movies"
+description: "This project is focused on classifying traits in movie characters portrayed by Keanu Reeves using multilabel text classification."
+
+vars:
+  name: "keanutraits"
+  version: "0.1.0"
+
+directories:
+  - configs
+  - data
+  - scripts
+  - trained
+  - packages
+  - corpus
+
+workflows:
+  all:
+    - preprocess
+    - config
+    - train
+    - evaluate
+    - package
+
+commands:
+  - name: preprocess
+    help: "Preprocess the raw data to convert it into a format suitable for training."
+    script:
+      - "python scripts/convert.py --lang en --data-dir data --corpus-dir corpus"
+    deps:
+      - "data/traindata.csv"
+      - "data/testdata.csv"
+    outputs:
+      - "corpus/traindata.spacy"
+      - "corpus/testdata.spacy"
+
+  - name: config
+    help: "Create a configuration file for training a text classification model."
+    script:
+      - "python -m spacy init config configs/base.cfg --pipeline textcat_multilabel --optimize efficiency --lang en --force"
+    outputs:
+      - "configs/base.cfg"
+
+  - name: train
+    help: "Train a text classification model."
+    script:
+      - "python -m spacy train configs/base.cfg --paths.train corpus/traindata.spacy --paths.dev corpus/testdata.spacy --output trained"
+    deps:
+      - "configs/base.cfg"
+      - "corpus/traindata.spacy"
+      - "corpus/testdata.spacy"
+    outputs:
+      - "trained/model-best"
+
+  - name: evaluate
+    help: "Evaluate the trained model on the test dataset."
+    script:
+      - "python -m spacy evaluate trained/model-best corpus/testdata.spacy --output trained/metrics.json --gpu-id 0"
+    deps:
+      - "trained/model-best"
+      - "corpus/testdata.spacy"
+    outputs:
+      - "trained/metrics.json"
+
+  - name: package
+    help: "Package the trained model for distribution."
+    script:
+      - "python -m spacy package trained/model-best packages --name ${vars.name} --version ${vars.version} --force"
+    deps:
+      - "trained/model-best"
+    outputs_no_cache:
+      - "packages/en_${vars.name}-${vars.version}/dist/en_${vars.name}-${vars.version}.tar.gz"
